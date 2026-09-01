@@ -304,16 +304,158 @@ All endpoints run on `http://localhost:8000`
    cd frontend && npm install && cd ..
    ```
 
-## 🏗️ Production Build
+## 🚀 Production Deployment (Recommended)
 
-To create an optimized production build of the frontend:
+The best way to deploy this project is to run it on a Linux VPS or cloud VM with Docker Compose + Nginx, because:
+
+- the backend needs a real Python runtime and a C++ compiler (`g++`/`clang++`)
+- the frontend is a React app that should be built into static files
+- the app needs a persistent SQLite database for saved scripts
+- the backend compiles untrusted user code, so it should run in a controlled server environment instead of a static-only host
+
+### Best deployment architecture
+
+Use this setup:
+
+- Frontend: `npm run build` and serve the `dist/` folder with Nginx
+- Backend: FastAPI running in a Docker container or a systemd service
+- Compiler: installed on the server so `/execute` can compile C++ code
+- Database: SQLite stored in a persistent volume or backup folder
+- HTTPS: terminate TLS with Nginx or a managed load balancer such as Cloudflare
+
+### Recommended production flow
+
+1. Prepare a Linux server (Ubuntu 22.04 or 24.04 recommended)
+2. Install Docker + Docker Compose
+3. Clone the repository on the server
+4. Build the frontend for production
+5. Keep the backend and frontend behind Nginx
+6. Set environment variables and enable HTTPS
+7. Restart services with `docker compose up -d --build` or your process manager
+
+### Production commands
 
 ```bash
-cd frontend
+# 1) Server setup
+sudo apt update
+sudo apt install -y docker.io docker-compose-plugin curl git
+
+# 2) Clone project
+cd /opt
+sudo git clone <your-repository-url> cpp-sandbox
+cd cpp-sandbox/backend-sandbox-project
+
+# 3) Install backend dependencies
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install gunicorn
+
+# 4) Build frontend
+cd ../frontend
+npm install
 npm run build
 ```
 
-This creates a `dist/` folder with optimized HTML, CSS, and JavaScript files ready for deployment.
+### Nginx reverse proxy example
+
+Create a server block like this:
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        root /var/www/cpp-sandbox/frontend/dist;
+        try_files $uri /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Then update the frontend to call the production API URL instead of `http://localhost:8000`.
+
+### Production backend startup
+
+Use Gunicorn instead of `uvicorn --reload` for production:
+
+```bash
+cd backend
+source .venv/bin/activate
+gunicorn app.main:app --workers 2 --bind 0.0.0.0:8000 --worker-class uvicorn.workers.UvicornWorker
+```
+
+### Production Docker Compose example
+
+If you want a containerized production deployment, use a production compose file similar to this:
+
+```yaml
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: ./backend
+    command: gunicorn app.main:app --workers 2 --bind 0.0.0.0:8000 --worker-class uvicorn.workers.UvicornWorker
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./db:/app/db
+      - ./src:/app/src
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  frontend:
+    image: node:20
+    working_dir: /app
+    command: sh -c "npm install && npm run build"
+    volumes:
+      - ./frontend:/app
+      - frontend_dist:/app/dist
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./frontend/dist:/var/www/cpp-sandbox/frontend/dist
+
+volumes:
+  frontend_dist:
+```
+
+### Important production rules
+
+- Do not deploy with `--reload` in production
+- Do not hardcode `localhost` in the frontend for the public app
+- Keep the compiler installed on the host or in the container
+- Use a persistent volume for `db/app.db`
+- Restrict file upload and source execution permissions if your app becomes public
+- Add HTTPS certificates with Let's Encrypt or a reverse proxy service
+
+### Best choice for this project
+
+For a portfolio or classroom project, the best balance is:
+
+- Linux VPS or cloud VM
+- Dockerized backend
+- built static frontend served by Nginx
+- HTTPS via Cloudflare or Let's Encrypt
+
+This is more reliable than deploying only the frontend to a static host, because the backend must execute C++ code and access the local compiler.
 
 ## 📝 Development Notes
 
