@@ -457,6 +457,104 @@ For a portfolio or classroom project, the best balance is:
 
 This is more reliable than deploying only the frontend to a static host, because the backend must execute C++ code and access the local compiler.
 
+## ☁️ Deploy to Render and/or Vercel
+
+The easiest production setup for this project is:
+
+- Render: host the FastAPI backend
+- Vercel: host the React frontend
+
+This is the recommended split because the backend must compile C++ code and the frontend is just a static UI.
+
+### Option 1: Deploy backend to Render
+
+1. Push the project to GitHub
+2. Open https://render.com and create a new Web Service
+3. Connect your repository
+4. Configure the service:
+   - Root Directory: `backend-sandbox-project/backend`
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `gunicorn app.main:app --workers 2 --bind 0.0.0.0:$PORT --worker-class uvicorn.workers.UvicornWorker`
+5. Important: install the C++ compiler in the Render environment
+   - Either use a Dockerfile for the backend, or add a build step that installs `g++`
+   - Example:
+
+```bash
+apt-get update
+apt-get install -y g++
+pip install -r requirements.txt
+```
+
+6. After deployment, copy the Render URL, for example:
+
+```text
+https://cpp-sandbox-api.onrender.com
+```
+
+7. In the frontend, set the environment variable:
+
+```env
+VITE_API_URL=https://cpp-sandbox-api.onrender.com
+```
+
+8. Redeploy the frontend on Vercel so it uses that API URL.
+
+### Option 2: Deploy frontend to Vercel
+
+1. Push the repository to GitHub
+2. Open https://vercel.com and import the project
+3. Set the project root to `backend-sandbox-project/frontend`
+4. Build settings:
+   - Build Command: `npm install && npm run build`
+   - Output Directory: `dist`
+5. Add environment variable in Vercel:
+
+```env
+VITE_API_URL=https://cpp-sandbox-api.onrender.com
+```
+
+6. Deploy the app
+7. Visit the generated Vercel URL and confirm the frontend loads the backend correctly
+
+### Frontend code that supports production URLs
+
+The frontend now uses a production-safe API URL with a local fallback:
+
+```js
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+```
+
+That means:
+
+- local development uses `http://localhost:8000`
+- production uses the value from `VITE_API_URL`
+
+### Recommended production combination
+
+For this project, the best pairing is:
+
+- Render for backend API + compiler execution
+- Vercel for frontend UI
+
+Avoid putting the backend on Vercel alone, because this app needs a real Python service and a compiler to run C++ code.
+
+### Example final architecture
+
+```text
+Frontend (Vercel) -> https://your-app.vercel.app
+Backend (Render) -> https://your-api.onrender.com
+Database (SQLite) -> persisted inside the Render service or a mounted volume
+Compiler -> g++ installed on the Render server/container
+```
+
+### Tips for production
+
+- Do not keep `localhost` in the deployed frontend
+- Use environment variables instead of hardcoded URLs
+- Keep the backend protected with rate limiting or authentication if public
+- Use HTTPS everywhere
+- Back up the SQLite database regularly
+
 ## 📝 Development Notes
 
 - The backend uses **auto-reload** mode (`--reload` flag), so changes to Python files automatically restart the server

@@ -8,6 +8,8 @@ int main() {
     return 0;
 }`
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 function App() {
   const [title, setTitle] = useState('hello-world')
   const [code, setCode] = useState(defaultCode)
@@ -19,7 +21,7 @@ function App() {
 
   const fetchScripts = async () => {
     try {
-      const response = await fetch('http://localhost:8000/scripts')
+      const response = await fetch(`${API_BASE_URL}/scripts`)
       const data = await response.json()
       setScripts(data)
     } catch (error) {
@@ -34,7 +36,7 @@ function App() {
 
   const fetchSourceFiles = async () => {
     try {
-      const response = await fetch('http://localhost:8000/source-files')
+      const response = await fetch(`${API_BASE_URL}/source-files`)
       const data = await response.json()
       setSourceFiles(data)
     } catch (error) {
@@ -44,7 +46,7 @@ function App() {
 
   const handleSave = async () => {
     setStatus('Saving...')
-    const response = await fetch('http://localhost:8000/scripts', {
+    const response = await fetch(`${API_BASE_URL}/scripts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, code, category: 'general' }),
@@ -65,7 +67,7 @@ function App() {
     setOutput('')
 
     try {
-      const response = await fetch('http://localhost:8000/execute', {
+      const response = await fetch(`${API_BASE_URL}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, code }),
@@ -95,7 +97,7 @@ function App() {
     setStatus('Loading file...')
 
     try {
-      const response = await fetch(`http://localhost:8000/source-files/content?path=${encodeURIComponent(source.path)}`)
+      const response = await fetch(`${API_BASE_URL}/source-files/content?path=${encodeURIComponent(source.path)}`)
       const data = await response.json()
 
       if (!data.success) {
